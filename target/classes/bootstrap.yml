@@ -1,5 +1,5 @@
 server:
-  port: 8010
+  port: 8080
   # 应用名称（nacos会将该名称当做服务名称）
 spring:
   application:

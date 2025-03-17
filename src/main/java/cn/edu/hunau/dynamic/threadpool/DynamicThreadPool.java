@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 @RefreshScope
 public class DynamicThreadPool {
-    private final ThreadPoolExecutorService threadPool;
+    private ThreadPoolExecutorService threadPool;
+    private ThreadPoolExecutor executor;
 
     @Value("${core.size:10}")
     private int coreSize;
@@ -30,30 +31,32 @@ public class DynamicThreadPool {
     @Autowired
     private NacosConfigProperties nacosConfigProperties;
 
-    public DynamicThreadPool() {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-            10, 
-            20,
-            60L, 
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(1000),
-            new ThreadFactory() {
-                private final AtomicInteger threadNumber = new AtomicInteger(1);
-                @Override
-                public Thread newThread(Runnable r) {
-                    return new Thread(r, "dynamic-thread-" + threadNumber.getAndIncrement());
-                }
-            },
-            new ThreadPoolExecutor.CallerRunsPolicy()
-        );
-        
-        this.threadPool = new SafeThreadPoolExecutorDecorator(executor);
-    }
-
     @PostConstruct
     public void init() {
-        threadPool.setCorePoolSize(coreSize);
-        threadPool.setMaximumPoolSize(maxSize);
+        // 校验配置中心的值
+        if (coreSize > maxSize) {
+            System.out.println("Warning: coreSize (" + coreSize + ") is greater than maxSize (" + maxSize + "). Adjusting coreSize to maxSize.");
+            coreSize = maxSize;
+        }
+
+        // 使用配置中心的值初始化线程池
+        executor = new ThreadPoolExecutor(
+                coreSize,
+                maxSize,
+                60L,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(1000),
+                new ThreadFactory() {
+                    private final AtomicInteger threadNumber = new AtomicInteger(1);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        return new Thread(r, "dynamic-thread-" + threadNumber.getAndIncrement());
+                    }
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+
+        this.threadPool = new SafeThreadPoolExecutorDecorator(executor);
     }
 
     public String printThreadPoolStatus() {
